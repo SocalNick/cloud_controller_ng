@@ -47,6 +47,31 @@ module VCAP::CloudController
       self.associations[:stack] = Stack.default unless stack
     end
 
+    one_to_many :packages, dataset: -> { PackageModel.where(app: app).order(:created_at) }
+
+    def package
+      packages.last
+    end
+
+    def package_hash
+      package.try(:package_hash)
+    end
+
+    def package_state
+      package.try(:state)
+    end
+
+    def package_updated_at
+      package.try(:updated_at)
+    end
+
+    def staging_failed_description
+      nil
+    end
+    def staging_failed_reason
+      nil
+    end
+
     one_through_many :organization,
         [
           [App.table_name, :id, :app_guid],
@@ -146,7 +171,7 @@ module VCAP::CloudController
 
       copy_buildpack_errors
 
-      validates_includes PACKAGE_STATES, :package_state, allow_missing: true
+      # validates_includes PACKAGE_STATES, :package_state, allow_missing: true
       validates_includes APP_STATES, :state, allow_missing: true, message: 'must be one of ' + APP_STATES.join(', ')
       validates_includes STAGING_FAILED_REASONS, :staging_failed_reason, allow_nil: true
       validates_includes HEALTH_CHECK_TYPES, :health_check_type, allow_missing: true, message: 'must be one of ' + HEALTH_CHECK_TYPES.join(', ')
@@ -198,7 +223,7 @@ module VCAP::CloudController
 
     def before_save
       if needs_package_in_current_state? && !package_hash
-        raise CloudController::Errors::ApiError.new_from_details('AppPackageInvalid', 'bits have not been uploaded')
+        # raise CloudController::Errors::ApiError.new_from_details('AppPackageInvalid', 'bits have not been uploaded')
       end
 
       self.enable_ssh = Config.config[:allow_app_ssh_access] && space.allow_ssh if enable_ssh.nil?
@@ -513,10 +538,11 @@ module VCAP::CloudController
     def docker_image=(value)
       value = docker_image_with_tag_name(value)
       super
-      self.package_hash = value
+      # self.package_hash = value
     end
 
     def package_hash=(hash)
+      raise 'NO LONGER SETTING PACKAGE HASH'
       super(hash)
       mark_for_restaging if column_changed?(:package_hash)
       self.package_updated_at = Sequel.datetime_class.now

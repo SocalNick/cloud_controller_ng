@@ -27,5 +27,23 @@ module VCAP::CloudController
       validates_includes PACKAGE_STATES, :state, allow_missing: true
       errors.add(:type, 'cannot have docker data if type is bits') if docker_data && type != DOCKER_TYPE
     end
+
+    def succeed_upload!(package_hash)
+      db.transaction do
+        self.lock!
+        self.package_hash = package_hash
+        self.state = VCAP::CloudController::PackageModel::READY_STATE
+        self.save
+      end
+    end
+
+    def fail_upload!(err_msg)
+      db.transaction do
+        self.lock!
+        self.state = VCAP::CloudController::PackageModel::FAILED_STATE
+        self.error = err_msg
+        self.save
+      end
+    end
   end
 end

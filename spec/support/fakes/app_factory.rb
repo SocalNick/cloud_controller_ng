@@ -7,7 +7,6 @@ module VCAP
 
         defaults = {
             droplet_hash: Sham.guid,
-            package_hash: Sham.guid,
             metadata: {},
         }
         attributes = defaults.merge(attributes)
@@ -32,6 +31,9 @@ module VCAP
         args << attributes
 
         app = VCAP::CloudController::App.make(*args)
+
+        VCAP::CloudController::PackageModel.make(app: app.app, state: PackageModel::READY_STATE, package_hash: Sham.guid)
+
         app.add_new_droplet(app.droplet_hash) if app.droplet_hash
         app.reload
       end
