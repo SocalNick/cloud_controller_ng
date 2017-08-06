@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'puma/launcher'
 
 module VCAP::CloudController
   RSpec.describe Runner do
@@ -25,7 +26,7 @@ module VCAP::CloudController
 
     subject do
       Runner.new(argv + ['-c', config_file.path]).tap do |r|
-        allow(r).to receive(:start_thin_server)
+        allow(r).to receive(:start_puma_server)
       end
     end
 
@@ -61,6 +62,13 @@ module VCAP::CloudController
         loggregator_emitter = double(:loggregator_emitter)
         expect(LoggregatorEmitter::Emitter).to receive(:new).and_return(loggregator_emitter)
         expect(Loggregator).to receive(:emitter=).with(loggregator_emitter)
+        subject.run!
+      end
+
+      it 'starts puma server on set up bind address' do
+        allow(subject).to receive(:start_puma_server).and_call_original
+        expect(VCAP).to receive(:local_ip).and_return('some_local_ip')
+        expect(puma::Server).to receive(:new).with('some_local_ip', 8181, { signals: false }).and_return(double(:puma_server).as_null_object)
         subject.run!
       end
 
@@ -128,8 +136,8 @@ module VCAP::CloudController
     end
 
     describe '#stop!' do
-      it 'should stop thin and EM' do
-        expect(subject).to receive(:stop_thin_server)
+      it 'should stop puma and EM' do
+        expect(subject).to receive(:stop_puma_server)
         expect(EM).to receive(:stop)
         subject.stop!
       end
@@ -204,37 +212,25 @@ module VCAP::CloudController
       end
     end
 
-    describe '#start_thin_server' do
+    describe '#start_puma_server' do
       let(:app) { double(:app) }
-      let(:thin_server) { OpenStruct.new }
+      let(:puma_server) { OpenStruct.new }
       let(:valid_config_file_path) { File.join(Paths::FIXTURES, 'config/default_overriding_config.yml') }
 
-      subject(:start_thin_server) do
+      subject(:start_puma_server) do
         runner = Runner.new(argv + ['-c', config_file.path])
-        runner.send(:start_thin_server, app)
+        runner.send(:start_puma_server, app)
       end
 
       before do
-        allow(Thin::Server).to receive(:new).and_return(thin_server)
-        allow(thin_server).to receive(:start!)
+        allow(Puma::Launcher).to receive(:new).and_return(puma_server)
+        allow(puma_server).to receive(:run)
       end
 
-      it 'gets the timeout from the config' do
-        start_thin_server
+      it 'starts the puma server' do
+        start_puma_server
 
-        expect(thin_server.timeout).to eq(600)
-      end
-
-      it "uses thin's experimental threaded mode intentionally" do
-        start_thin_server
-
-        expect(thin_server.threaded).to eq(true)
-      end
-
-      it 'starts the thin server' do
-        start_thin_server
-
-        expect(thin_server).to have_received(:start!)
+        expect(puma_server).to have_received(:run)
       end
     end
 

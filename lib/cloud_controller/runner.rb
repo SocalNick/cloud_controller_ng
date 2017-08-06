@@ -84,7 +84,8 @@ module VCAP::CloudController
           builder = RackAppBuilder.new
           app     = builder.build(@config, request_metrics)
 
-          start_thin_server(app)
+          # start_thin_server(app)
+          start_puma_server(app)
         rescue => e
           logger.error "Encountered error: #{e}\n#{e.backtrace.join("\n")}"
           raise e
@@ -121,7 +122,8 @@ module VCAP::CloudController
     end
 
     def stop!
-      stop_thin_server
+      # stop_thin_server
+      stop_puma_server
       logger.info('Stopping EventMachine')
       EM.stop
     end
@@ -197,7 +199,30 @@ module VCAP::CloudController
       def publish(*args); end
     end
 
-    def register_with_collector
+    def start_puma_server(app)
+      require 'puma/configuration'
+      require 'puma/launcher'
+      @conf = Puma::Configuration.new do |user_config|
+        user_config.threads 1, 10
+        if @config[:nginx][:use_nginx]
+          user_config.binds ["unix://#{@config[:nginx][:instance_socket]}"]
+        else
+          user_config.binds ["tcp://#{@config[:external_host]}:#{@config[:external_port]}"]
+        end
+        user_config.port @config[:external_port]
+        user_config.app do |env|
+          app
+        end
+      end
+      @puma_launcher = Puma::Launcher.new(@conf, events: Puma::Events.stdio)
+      @puma_launcher.run
+    end
+
+    def stop_puma_server
+      @puma_launcher.stop
+    end
+
+    def register_with_collector(message_bus)
       VCAP::Component.register(
         type: 'CloudController',
         host: @config[:external_host],

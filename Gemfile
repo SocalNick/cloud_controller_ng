@@ -32,7 +32,7 @@ gem 'sinatra', '~> 1.4'
 gem 'sinatra-contrib'
 gem 'statsd-ruby', '~> 1.4.0'
 gem 'steno'
-gem 'thin'
+gem "puma"
 gem 'unf'
 gem 'vcap_common', '~> 4.0.4'
 gem 'yajl-ruby'
